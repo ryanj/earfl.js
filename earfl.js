@@ -4,6 +4,7 @@ function earfl_audio_player(mode) {
   // github project: http://github.com/ryanjarvinen/earfl.js
 
   //This collection of functions wraps the 'soundmanager2' js library and adds a UI.
+  //This player expects the JSON2 parser to be loaded and an xspf feed to have been included into the parent doc
   
   // =INTERNAL VARS=
   var self = this;
@@ -13,11 +14,11 @@ function earfl_audio_player(mode) {
   this.mode = mode;
 
   //Current track id, expected format once initialized is 'r_' plus the track id from earfl.com, "r_1823"
-  this.cur_btn_id= new Boolean(false);
+  this.cur_btn_id = false;
   //a soundmanager object capable of playing the current audio track
-  this.sm=new Boolean(false);
+  this.sm = false;
   //a soundmanager object capable of playing the previous audio track
-  this.last_sm=new Boolean(false);
+  this.last_sm = false;
 
   
   // =EVENT HANDLER FUNCTIONS=
@@ -28,11 +29,11 @@ function earfl_audio_player(mode) {
 
     if(event_element.hasClassName('load_progress')){
       //skip forward
-      button_name = $(event_element).up(0).previous(2).className)[0].slice(12);
+      button_name = $(event_element.up(0).previous(2).className)[0].slice(12);
       progress_px_width = event_element.up(0).getStyle('width');
     }else{
       //rewind, skip back
-      button_name = $(event_element).up(1).previous(2).className)[0].slice(12);
+      button_name = $(event_element.up(1).previous(2).className)[0].slice(12);
       progress_px_width = event_element.up(1).getStyle('width');
     }
 
