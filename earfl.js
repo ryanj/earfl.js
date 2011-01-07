@@ -9,10 +9,10 @@ function earfl_audio_player(mode) {
   var self = this;
 
   //The mode controls the layout and available features in the UI. 
-  //'core' is the basic mode. 'narrow' and 'wide' modes may not work without additional data from earfl.com
+  //'core' is the basic mode. 'narrow' and 'wide' modes may not work without additional data from the earfl.com API
   this.mode = mode;
 
-  //Current track id
+  //Current track id, expected format once initialized is 'r_' plus the track id from earfl.com, "r_1823"
   this.cur_btn_id= new Boolean(false);
   //a soundmanager object capable of playing the current audio track
   this.sm=new Boolean(false);
@@ -28,11 +28,11 @@ function earfl_audio_player(mode) {
 
     if(event_element.hasClassName('load_progress')){
       //skip forward
-      button_name = $w(event_element.up(0).previous(2).className)[0].slice(12);
+      button_name = $(event_element).up(0).previous(2).className)[0].slice(12);
       progress_px_width = event_element.up(0).getStyle('width');
     }else{
       //rewind, skip back
-      button_name = $w(event_element.up(1).previous(2).className)[0].slice(12);
+      button_name = $(event_element).up(1).previous(2).className)[0].slice(12);
       progress_px_width = event_element.up(1).getStyle('width');
     }
 
@@ -48,7 +48,7 @@ function earfl_audio_player(mode) {
   //handle the onload event, add event listeners for our seekable progress bar
   this.event_onload=function(r_id, duration){
     if(this.mode != "buttons"){
-      $$('.play_button_' + r_id ).each(function(btn){
+      $('.play_button_' + r_id ).each(function(btn){
         btn.next(2).observe('click', earfl_player.event_seek);
         btn.next(2).down(0).observe('click', earfl_player.event_seek);
         btn.next(2).down(0).setStyle({width: '100%'});
@@ -62,7 +62,7 @@ function earfl_audio_player(mode) {
   //Animate the loading progress as the audio is downloading
   this.event_whileloading=function(r_id, duration, bytesLoaded, bytesTotal){
     if(this.mode != "buttons"){
-      $$('.play_button_' + r_id ).each(function(btn){
+      $('.play_button_' + r_id ).each(function(btn){
         btn.next(2).down(0).setStyle({width:'' + Math.floor( 100 * bytesLoaded / bytesTotal ) + '%'});
         btn.next(0).down(2).innerHTML=millis_to_string(duration);
       });
@@ -82,7 +82,7 @@ function earfl_audio_player(mode) {
   //Animate the playback progress as the audio is playing
   this.event_whileplaying=function(r_id, offset, total){
     if(this.mode != "buttons"){
-      $$('.play_button_' + r_id ).each(function(btn){
+      $('.play_button_' + r_id ).each(function(btn){
         //update time offset
         btn.next(0).down(0).innerHTML=millis_to_string(offset);
         //update slider offset
@@ -101,7 +101,7 @@ function earfl_audio_player(mode) {
   this.event_onfinish=function(r_id){
     this.update_play_ids(r_id);
     if(this.mode != "buttons"){
-      $$('.play_button_' + r_id ).each(function(btn){
+      $('.play_button_' + r_id ).each(function(btn){
         btn.next(2).down(1).setStyle({width: '98%'});
       });
     }
@@ -109,39 +109,51 @@ function earfl_audio_player(mode) {
 
   // =APPLICATION LOGIC=
 
-  // when a 
+  // when a play button is clicked, take the appropriate action
   this.play_track=function(id){
-    //if we are swapping songs reset the old players button.
+    //if we are swapping tracks, reset the previous players button.
     if(this.cur_btn_id){
       this.update_play_ids(this.cur_btn_id);
     }
     this.cur_btn_id = 'r_' + id;
+
     try{
-      // 1- check to see if the triggered recording has been loading yet.  Jump to 'catch' if not.
+      //store a reference to the previous track index, so we can test to see 
+      //if we need to switch to a new track, or just restart the current one from the top.
       this.last_sm = this.sm;
+
+      // check to see if the triggered recording has been loading yet.  
+      // Attempt to reference the desired track in memory, if it is not found 
+      // then an error will be thrown and we will load the track in the catch block below.
       this.sm = soundManager.getSoundById( 'r_' + id );
-      // 1a- if the selected track is playing,
+
+      // if the selected track is playing,
       if(!(this.sm && this.sm.playState == 1)){
-        // 1aa - restart playback from zero, set the button's class to 'stop'.
+        // then restart playback from zero, set the button's class to 'stop'.
         soundManager.stopAll();
         this.update_stop_ids(this.cur_btn_id);
         this.sm.play();
-        //this next line runs the on_play event.  I needed this because soundmanager doesn't seem to be running it as prescribed.
+        // run the on_play event.  this patch fixes situations where soundmanager mysteriously fails to run this on its own.
         this.event_onplay('r_' + id, this.sm.duration );
       }
       else{
-        // 1ab - stop it
+        // stop all audio from other players on the page 
+        // (playback may have already been in progress on another player UI before we selected play on this track)
         soundManager.stopAll();
       }
     }
     catch(error){
-      // 1b- if it's not loaded already, load it
+      // The selected track has not been downloaded yet, lets load it up
+
+      //UI updates
       if(this.mode != "buttons"){
         //display "loading..." text
-        $$('.play_button_r_' + id ).each(function(btn){
+        $('.play_button_r_' + id ).each(function(btn){
           btn.next(1).innerHTML='<blink>loading...</blink>';
         });
       }
+
+      //create a new sound in soundmanager and store a shortcut reference to it
       this.sm = soundManager.createSound({
         'id' : 'r_'+id,
         'stream': true, 
@@ -153,22 +165,22 @@ function earfl_audio_player(mode) {
         'whileloading': function(){ earfl_player.event_whileloading(this.sID, this.durationEstimate, this.bytesLoaded, this.bytesTotal); },
         'whileplaying': function(){ earfl_player.event_whileplaying(this.sID, this.position, this.durationEstimate); }
       });
+
       //stop all currently playing audio
       soundManager.stopAll();
       //redraw the button as stop
       this.update_stop_ids(this.cur_btn_id);
-      //play it
+      //start audio playback
       soundManager.play('r_'+id);
     }
   }
-
 
   // =UI RELATED CODE=
 
   //This UI change should be triggered whenever the play button is pressed
   this.update_play_ids=function(r_id){
     //let the player play
-    $$('.play_button_' + r_id ).each(function(player){
+    $('.play_button_' + r_id ).each(function(player){
       player.removeClassName('inline_stop_button');
       player.addClassName('inline_play_button');
     });
@@ -177,7 +189,7 @@ function earfl_audio_player(mode) {
   //This UI change should be triggered whenever the stop button is pressed
   this.update_stop_ids=function(r_id){
     //stop a player - (code-block?)
-    $$('.play_button_' + r_id ).each(function(player){
+    $('.play_button_' + r_id ).each(function(player){
       player.addClassName('inline_stop_button');
       player.removeClassName('inline_play_button');
     });
@@ -186,8 +198,10 @@ function earfl_audio_player(mode) {
 
 // ==more UI / renderer code==
 // *TODO: relocate the following functions into the above class so as not to pollute the global namespace
+// *TODO: move all CSS into a stylesheet.  most of these layout details don't belong in here
 
 //The initial load of the playlist renders a bunch of data into an HTML string that will be injected into the DOM.
+// I know this is mixing template data with logic, but I'm thinking of it like a renderer that converts JSON into HTML.
 function render_xspf_playlist(playlist, format){
   var markup = '<ul class="content_tree" style="list-style-type:none;padding-left:5px;margin-left:0px;';
   switch(format){
